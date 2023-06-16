@@ -1,5 +1,6 @@
 const catchError = require('../utils/catchError');
 const User = require('../models/User');
+const jwt = require('jsonwebtoken')
 
 const bcrypt = require('bcrypt');
 const sendEmail = require('../utils/sendEmail');
@@ -81,15 +82,16 @@ const verifyCode = catchError(async(req, res) => {
         {where:{id:codeUser.userId}, returning:true}
     )
 
-        await codeUser.destroy()
+    await codeUser.destroy()
     //const { id } = codeUser.id;
     //await EmailCode.destroy({ where: {id} });
-    
-    
     //return res.sendStatus(204);
     return res.json(userUpdate[1][0])
 })
 
+const login = catchError(async(req, res) => {
+    return res.json({message:"logueado"});
+})
 
 module.exports = {
     getAll,
@@ -97,5 +99,6 @@ module.exports = {
     getOne,
     remove,
     update,
-    verifyCode
+    verifyCode,
+    login
 }

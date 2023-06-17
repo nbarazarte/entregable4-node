@@ -43,8 +43,6 @@ const create = catchError(async(req, res) => {
     return res.status(201).json(result);
 });
 
-
-
 const getOne = catchError(async(req, res) => {
     const { id } = req.params;
     const result = await User.findByPk(id);
@@ -90,8 +88,76 @@ const verifyCode = catchError(async(req, res) => {
 })
 
 const login = catchError(async(req, res) => {
-    return res.json({message:"logueado"});
+    const {email,password} =req.body
+    const user = await User.findOne({where:{email}})
+    
+    if(!user) return res.status(401).json({message:"Invalid credencials"})
+    
+    const isValidPassword = await bcrypt.compare(password,user.password) //true or false
+    if(!isValidPassword)  res.status(401).json({message:"Invalid credencials"})
+    if(!user.isVerified)  res.status(401).json({message:"Invalid credencials"})
+
+    const token = jwt.sign(
+        {user},
+        process.env.TOKEN_SECRET,
+        {expiresIn:"1d"}
+        
+    )
+    return res.json({user,token})
+    
 })
+
+const logged = catchError(async(req, res) => {
+    
+    const user = req.user
+    return res.json(user)
+
+    //if(user) return res.json({message:"logueado"});
+})
+
+const reset = catchError(async(req, res) => { ///users/reset_password
+    const {email, frontBaseUrl} =req.body
+    const user = await User.findOne({where:{email}})
+    if(!user)  return res.status(401)
+    const code = require('crypto').randomBytes(64).toString('hex')
+    const url = `${frontBaseUrl}/reset_password/${code}`
+
+    await sendEmail({
+        to:email,
+        subject:"Solicitud de cambio de contrasena",
+        //text:"Hola, esta es una prueba"
+        html:`
+        <h2>haz click en el siguiente enlace para resetear tu contrasena:</h2>
+        <a href=${url}>
+            Click me!
+        </a>
+        `
+    })
+
+    const body = {code, userId:user.id}
+    await EmailCode.create(body)
+
+    return res.json({user})
+})  
+
+const updatePassword = catchError(async(req, res) => {
+    const {code} = req.params
+    const {password} = req.body
+    const userCode = await EmailCode.findOne({where:{code}})
+    if(!userCode)  return res.sendStatus(401)
+
+    const hashPassword = await bcrypt.hash(password, 10);
+    const body = {password:hashPassword}
+
+    const user = await User.update(body,{where:{id:userCode.userId}})//no es necesario ponerlo , returning: true
+    
+    if(user[0] === 0) return res.sendStatus(404);
+    await userCode.destroy()
+    //return res.json({message:"cambio con exito"})
+    return res.json(user[0])
+
+})
+
 
 module.exports = {
     getAll,
@@ -100,5 +166,8 @@ module.exports = {
     remove,
     update,
     verifyCode,
-    login
+    login,
+    logged,
+    reset,
+    updatePassword
 }
